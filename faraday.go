@@ -12,6 +12,7 @@ import (
 	"github.com/lightninglabs/faraday/frdrpcserver"
 	"github.com/lightninglabs/lndclient"
 	"github.com/lightningnetwork/lnd/build"
+	"github.com/lightningnetwork/lnd/clock"
 	"github.com/lightningnetwork/lnd/lnrpc/verrpc"
 	"github.com/lightningnetwork/lnd/signal"
 )
@@ -106,6 +107,14 @@ func Main() error {
 			return err
 		}
 	}
+
+	// Create stores.
+	_, err = NewStores(config, clock.NewDefaultClock())
+	if err != nil {
+		return fmt.Errorf("could not create stores: %v", err)
+	}
+
+	// TODO: need an implementation to watch for channel events.
 
 	server := frdrpcserver.NewRPCServer(cfg)
 
