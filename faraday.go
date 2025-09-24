@@ -22,6 +22,7 @@ import (
 	"github.com/lightninglabs/faraday/frdrpcserver/perms"
 	"github.com/lightninglabs/lndclient"
 	"github.com/lightningnetwork/lnd/build"
+	"github.com/lightningnetwork/lnd/clock"
 	"github.com/lightningnetwork/lnd/kvdb"
 	"github.com/lightningnetwork/lnd/lncfg"
 	"github.com/lightningnetwork/lnd/lnrpc/verrpc"
@@ -73,6 +74,9 @@ type Faraday struct {
 
 	// started is used to ensure we only start/stop the faraday once.
 	started atomic.Bool
+
+	// stores contains all the stores used by faraday.
+	stores *stores
 
 	// ctxCancel is a function that can be used to cancel the main context.
 	ctxCancel context.CancelFunc
@@ -383,6 +387,10 @@ func (f *Faraday) Stop() error {
 		log.Errorf("error stopping RPC server: %v", err)
 	}
 
+	if f.stores != nil {
+		f.stores.Close()
+	}
+
 	if f.macaroonService != nil {
 		err := f.macaroonService.Stop()
 		if err != nil {
@@ -446,6 +454,12 @@ func (f *Faraday) initialize(withMacaroonService bool) error {
 		if err != nil {
 			return err
 		}
+	}
+
+	// Create any relevant stores.
+	f.stores, err = NewStores(*f.cfg, clock.NewDefaultClock())
+	if err != nil {
+		return fmt.Errorf("could not create stores: %v", err)
 	}
 
 	return nil
