@@ -13,7 +13,7 @@ require (
 	github.com/jessevdk/go-flags v1.4.0
 	github.com/lib/pq v1.10.9
 	github.com/lightninglabs/faraday/frdrpc v1.0.1
-	github.com/lightninglabs/lndclient v0.19.0-7
+	github.com/lightninglabs/lndclient v0.19.0-15
 	github.com/lightningnetwork/lnd v0.19.3-beta
 	github.com/lightningnetwork/lnd/cert v1.2.2
 	github.com/lightningnetwork/lnd/clock v1.1.1
@@ -70,7 +70,7 @@ require (
 	github.com/fergusstrange/embedded-postgres v1.25.0 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
-	github.com/go-viper/mapstructure/v2 v2.3.0 // indirect
+	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
