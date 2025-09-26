@@ -282,6 +282,11 @@ func (m *Monitor) handleChannelEvent(ctx context.Context,
 		// Not implemented yet.
 		log.Infof("Ignoring event PENDING_OPEN_CHANNEL")
 		return nil
+
+	case lndclient.ChannelParamsUpdate:
+		// Not implemented yet.
+		log.Infof("Ignoring event CHANNEL_PARAMS_UPDATE")
+		return nil
 	}
 
 	return nil
