@@ -53,6 +53,8 @@ func (f *faraday) start(ctx context.Context) error {
 		return fmt.Errorf("faraday already started")
 	}
 
+	log.Infof("Starting Faraday version %s", Version())
+
 	if err := f.rpcServer.Start(); err != nil {
 		return err
 	}
@@ -71,6 +73,8 @@ func (f *faraday) stop() error {
 	if !f.started.CompareAndSwap(true, false) {
 		return fmt.Errorf("faraday not started")
 	}
+
+	log.Infof("Stopping Faraday")
 
 	if err := f.rpcServer.Stop(); err != nil {
 		return err
