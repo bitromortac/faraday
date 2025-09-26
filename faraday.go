@@ -2,13 +2,16 @@
 package faraday
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 
 	"github.com/jessevdk/go-flags"
 	"github.com/lightninglabs/faraday/chain"
+	"github.com/lightninglabs/faraday/chanevents"
 	"github.com/lightninglabs/faraday/frdrpcserver"
 	"github.com/lightninglabs/lndclient"
 	"github.com/lightningnetwork/lnd/build"
@@ -25,6 +28,71 @@ var MinLndVersion = &verrpc.Version{
 	AppMajor: 0,
 	AppMinor: 15,
 	AppPatch: 4,
+}
+
+// faraday is a struct that houses the faraday faraday and its dependencies.
+type faraday struct {
+	// started is used to ensure we only start/stop the faraday once.
+	started atomic.Bool
+
+	// rpcServer is the faraday gRPC server.
+	rpcServer *frdrpcserver.RPCServer
+
+	// monitor is the channel events monitor.
+	monitor *chanevents.Monitor
+
+	// stores contains all the stores used by faraday.
+	stores *stores
+
+	// ctxCancel is a function that can be used to cancel the main context.
+	ctxCancel context.CancelFunc
+}
+
+func (f *faraday) start(ctx context.Context) error {
+	if !f.started.CompareAndSwap(false, true) {
+		return fmt.Errorf("faraday already started")
+	}
+
+	if err := f.rpcServer.Start(); err != nil {
+		return err
+	}
+
+	if f.monitor != nil {
+		if err := f.monitor.Start(ctx); err != nil {
+			return fmt.Errorf("could not start channel event "+
+				"monitor: %v", err)
+		}
+	}
+
+	return nil
+}
+
+func (f *faraday) stop() error {
+	if !f.started.CompareAndSwap(true, false) {
+		return fmt.Errorf("faraday not started")
+	}
+
+	if err := f.rpcServer.Stop(); err != nil {
+		return err
+	}
+
+	if f.monitor != nil {
+		if err := f.monitor.Stop(); err != nil {
+			return fmt.Errorf("could not stop channel event "+
+				"monitor: %v", err)
+		}
+	}
+
+	if f.stores != nil {
+		for store, closeFn := range f.stores.closeFns {
+			if err := closeFn(); err != nil {
+				log.Errorf("Could not close store %v: %v",
+					store, err)
+			}
+		}
+	}
+
+	return nil
 }
 
 // Main is the real entry point for faraday. It is required to ensure that
@@ -108,28 +176,36 @@ func Main() error {
 		}
 	}
 
-	// Create stores.
-	_, err = NewStores(config, clock.NewDefaultClock())
+	// Create any relevant stores.
+	stores, err := NewStores(config, clock.NewDefaultClock())
 	if err != nil {
 		return fmt.Errorf("could not create stores: %v", err)
 	}
 
-	// TODO: need an implementation to watch for channel events.
+	// Create the channel event monitor.
+	monitor := chanevents.NewMonitor(
+		client.Client, stores.chanEventsStore,
+	)
 
-	server := frdrpcserver.NewRPCServer(cfg)
+	// Create the RPC rpcServer.
+	rpcServer := frdrpcserver.NewRPCServer(cfg)
 
-	// Start the server.
-	if err := server.Start(); err != nil {
-		return err
+	ctx, cancel := context.WithCancel(context.Background())
+
+	server := &faraday{
+		rpcServer: rpcServer,
+		monitor:   monitor,
+		stores:    stores,
+		ctxCancel: cancel,
 	}
+
+	server.start(ctx)
 
 	// Run until the user terminates.
 	<-shutdownInterceptor.ShutdownChannel()
 	log.Infof("Received shutdown signal.")
 
-	if err := server.Stop(); err != nil {
-		return err
-	}
+	server.stop()
 
 	return nil
 }
