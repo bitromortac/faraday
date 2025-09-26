@@ -11,8 +11,12 @@ RUN apk add --no-cache git make
 # Get lnd sources and install. Can't use go get here, because tags aren't passed
 # as a compiler variable, leading to lnd not reporting the tags that it is built
 # with.
-RUN git clone https://github.com/lightningnetwork/lnd.git && \
-  cd lnd && git checkout ${LND_VERSION} && \
+RUN pwd
+
+# Create copy first.
+ADD lnd /lnd
+
+RUN cd /lnd && \
   make install tags="signrpc walletrpc chainrpc invoicesrpc"
 
 # Second build stage, this time we use the bitcoind base image from ruimarinho.

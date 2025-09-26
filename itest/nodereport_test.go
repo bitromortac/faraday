@@ -52,7 +52,7 @@ func TestNodeAudit(t *testing.T) {
 	// We want to produce all the different types of transactions that our
 	// node report creates. We will start with channel opening, initiating
 	// a channel from alice to bob.
-	var aliceChannelAmt = btcutil.Amount(50000)
+	var aliceChannelAmt = btcutil.Amount(1000000)
 
 	err = c.aliceClient.Client.Connect(
 		ctx, c.bobPubkey, "localhost:10012", true,
