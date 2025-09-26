@@ -199,4 +199,6 @@ replace github.com/lightningnetwork/lnd/sqldb/v2 => github.com/ViktorTigerstrom/
 
 replace github.com/lightninglabs/lndclient => /home/user/ll/lndclient
 
+replace github.com/lightningnetwork/lnd => /home/user/ll/lnd
+
 go 1.24.6
