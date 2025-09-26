@@ -17,6 +17,7 @@ import (
 	proxy "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/jessevdk/go-flags"
 	"github.com/lightninglabs/faraday/chain"
+	"github.com/lightninglabs/faraday/chanevents"
 	"github.com/lightninglabs/faraday/frdrpc"
 	"github.com/lightninglabs/faraday/frdrpcserver"
 	"github.com/lightninglabs/faraday/frdrpcserver/perms"
@@ -74,6 +75,9 @@ type Faraday struct {
 
 	// started is used to ensure we only start/stop the faraday once.
 	started atomic.Bool
+
+	// monitor is the channel events monitor.
+	monitor *chanevents.Monitor
 
 	// stores contains all the stores used by faraday.
 	stores *stores
@@ -387,6 +391,13 @@ func (f *Faraday) Stop() error {
 		log.Errorf("error stopping RPC server: %v", err)
 	}
 
+	if f.monitor != nil {
+		if err := f.monitor.Stop(); err != nil {
+			return fmt.Errorf("could not stop channel event "+
+				"monitor: %v", err)
+		}
+	}
+
 	if f.stores != nil {
 		f.stores.Close()
 	}
@@ -460,6 +471,19 @@ func (f *Faraday) initialize(withMacaroonService bool) error {
 	f.stores, err = NewStores(*f.cfg, clock.NewDefaultClock())
 	if err != nil {
 		return fmt.Errorf("could not create stores: %v", err)
+	}
+
+	// Create the channel event monitor.
+	f.monitor = chanevents.NewMonitor(
+		f.lnd.Client, f.stores.ChanEventsStore,
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	f.ctxCancel = cancel
+
+	if err := f.monitor.Start(ctx); err != nil {
+		return fmt.Errorf("could not start channel event "+
+			"monitor: %v", err)
 	}
 
 	return nil
