@@ -145,6 +145,7 @@ func (f *Faraday) Start() error {
 
 	cfg := &frdrpcserver.Config{
 		Lnd:           f.lnd.LndServices,
+		ChanEvents:    f.stores.ChanEventsStore,
 		BitcoinClient: f.bitcoinClient,
 	}
 
@@ -351,6 +352,7 @@ func (f *Faraday) StartAsSubserver(lndGrpc *lndclient.GrpcLndServices,
 
 	cfg := &frdrpcserver.Config{
 		Lnd:           lndGrpc.LndServices,
+		ChanEvents:    f.stores.ChanEventsStore,
 		BitcoinClient: f.bitcoinClient,
 	}
 
