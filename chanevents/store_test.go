@@ -122,4 +122,20 @@ func TestStore(t *testing.T) {
 	require.Equal(t, testTime.Add(time.Second).Unix(), events[1].Timestamp.Unix())
 	require.Equal(t, updateEvent.LocalBalance, events[1].LocalBalance)
 	require.Equal(t, updateEvent.RemoteBalance, events[1].RemoteBalance)
+
+	// If we query a time after the second event, we'll obtain the update
+	// event as the latest event.
+	initEvent, err := store.GetLatestChannelUpdateBefore(
+		ctx, channelID, events[1].Timestamp.Add(time.Second),
+	)
+	require.NoError(t, err)
+	require.Equal(t, EventTypeUpdate, initEvent.EventType)
+
+	// If we query at the second event's timestamp, the only event before
+	// that is left is the online event, which we are not interested in.
+	initEvent, err = store.GetLatestChannelUpdateBefore(
+		ctx, channelID, events[1].Timestamp,
+	)
+	require.NoError(t, err)
+	require.Nil(t, initEvent)
 }

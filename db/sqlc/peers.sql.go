@@ -85,6 +85,33 @@ func (q *Queries) GetChannelEvents(ctx context.Context, arg GetChannelEventsPara
 	return items, nil
 }
 
+const getLatestChannelEventBefore = `-- name: GetLatestChannelEventBefore :one
+SELECT id, channel_id, event_type, timestamp, local_balance_sat, remote_balance_sat FROM channel_events
+WHERE channel_id = $1 AND event_type = $2 AND timestamp < $3
+ORDER BY timestamp DESC
+LIMIT 1
+`
+
+type GetLatestChannelEventBeforeParams struct {
+	ChannelID int64
+	EventType int16
+	Timestamp time.Time
+}
+
+func (q *Queries) GetLatestChannelEventBefore(ctx context.Context, arg GetLatestChannelEventBeforeParams) (ChannelEvent, error) {
+	row := q.db.QueryRowContext(ctx, getLatestChannelEventBefore, arg.ChannelID, arg.EventType, arg.Timestamp)
+	var i ChannelEvent
+	err := row.Scan(
+		&i.ID,
+		&i.ChannelID,
+		&i.EventType,
+		&i.Timestamp,
+		&i.LocalBalanceSat,
+		&i.RemoteBalanceSat,
+	)
+	return i, err
+}
+
 const getPeerByPubKey = `-- name: GetPeerByPubKey :one
 SELECT id, pubkey FROM peers WHERE pubkey = $1
 `

@@ -22,3 +22,9 @@ INSERT INTO channel_events (
 SELECT * FROM channel_events
 WHERE channel_id = $1 AND timestamp BETWEEN $2 AND $3
 ORDER BY timestamp ASC;
+
+-- name: GetLatestChannelEventBefore :one
+SELECT * FROM channel_events
+WHERE channel_id = $1 AND event_type = $2 AND timestamp < $3
+ORDER BY timestamp DESC
+LIMIT 1;

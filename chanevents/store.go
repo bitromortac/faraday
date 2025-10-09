@@ -28,6 +28,7 @@ type PeerQueries interface {
 	GetChannelByShortChanID(ctx context.Context, shortChannelID int64) (sqlc.Channel, error)
 	InsertChannelEvent(ctx context.Context, arg sqlc.InsertChannelEventParams) error
 	GetChannelEvents(ctx context.Context, arg sqlc.GetChannelEventsParams) ([]sqlc.ChannelEvent, error)
+	GetLatestChannelEventBefore(ctx context.Context, arg sqlc.GetLatestChannelEventBeforeParams) (sqlc.ChannelEvent, error)
 }
 
 // Store represents gives access to the db for channel events.
@@ -209,4 +210,47 @@ func (s *Store) GetChannelEvents(ctx context.Context, channelID int64,
 	}
 
 	return events, nil
+}
+
+// GetLatestChannelUpdateBefore returns the latest channel event before a given
+// time. If no event is found, it returns (nil, nil).
+func (s *Store) GetLatestChannelUpdateBefore(ctx context.Context, channelID int64,
+	before time.Time) (*ChannelEvent, error) {
+
+	dbEvent, err := s.db.GetLatestChannelEventBefore(
+		ctx, sqlc.GetLatestChannelEventBeforeParams{
+			ChannelID: channelID,
+			Timestamp: before.UTC(),
+			EventType: int16(EventTypeUpdate),
+		},
+	)
+	if err != nil {
+		// If there are no events before the start time, we return
+		// (nil, nil).
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	var localBalance fn.Option[btcutil.Amount]
+	if dbEvent.LocalBalanceSat.Valid {
+		amt := btcutil.Amount(dbEvent.LocalBalanceSat.Int64)
+		localBalance = fn.Some(amt)
+	}
+
+	var remoteBalance fn.Option[btcutil.Amount]
+	if dbEvent.RemoteBalanceSat.Valid {
+		amt := btcutil.Amount(dbEvent.RemoteBalanceSat.Int64)
+		remoteBalance = fn.Some(amt)
+	}
+
+	return &ChannelEvent{
+		ID:            dbEvent.ID,
+		ChannelID:     dbEvent.ChannelID,
+		EventType:     EventType(dbEvent.EventType),
+		Timestamp:     dbEvent.Timestamp.UTC(),
+		LocalBalance:  localBalance,
+		RemoteBalance: remoteBalance,
+	}, nil
 }
