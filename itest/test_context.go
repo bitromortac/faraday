@@ -40,7 +40,7 @@ var (
 		"--network=regtest",
 		"--lnd.macaroonpath=lnd-alice/faraday-custom.macaroon",
 		"--lnd.tlscertpath=lnd-alice/tls.cert",
-		"--debuglevel=debug",
+		"--debuglevel=trace",
 		"--connect_bitcoin",
 		"--bitcoin.user=devuser",
 		"--bitcoin.password=devpass",
