@@ -194,4 +194,7 @@ replace github.com/golang-migrate/migrate/v4 => github.com/lightninglabs/migrate
 // We use the sqldb v2 work with a replace until it's merged.
 replace github.com/lightningnetwork/lnd/sqldb/v2 => github.com/ViktorT-11/lnd/sqldb/v2 v2.0.0-20260123000653-a803b19d1e1e
 
+// We need to replace frdrpc locally until we have this PR merged.
+replace github.com/lightninglabs/faraday/frdrpc => ./frdrpc
+
 go 1.25.5
