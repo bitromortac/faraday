@@ -153,6 +153,94 @@
         ]
       }
     },
+    "/v1/faraday/forwardingability": {
+      "get": {
+        "summary": "*\nGet the forwarding ability of a peer over a given time period.",
+        "operationId": "FaradayServer_ForwardingAbility",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/frdrpcForwardingAbilityResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "start_time",
+            "description": "The start time of the query range, expressed as unix epoch offset in\nseconds.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "uint64"
+          },
+          {
+            "name": "end_time",
+            "description": "The end time of the query range, expressed as unix epoch offset in seconds.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "uint64"
+          },
+          {
+            "name": "forward_percentile",
+            "description": "The percentile of successful forward amounts to use as a threshold for\ndetermining routable liquidity.",
+            "in": "query",
+            "required": false,
+            "type": "number",
+            "format": "float"
+          },
+          {
+            "name": "threshold_amt_sat",
+            "description": "The threshold amount in satoshis to use for determining routable liquidity.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "uint64"
+          }
+        ],
+        "tags": [
+          "FaradayServer"
+        ]
+      },
+      "post": {
+        "summary": "*\nGet the forwarding ability of a peer over a given time period.",
+        "operationId": "FaradayServer_ForwardingAbility2",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/frdrpcForwardingAbilityResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/frdrpcForwardingAbilityRequest"
+            }
+          }
+        ],
+        "tags": [
+          "FaradayServer"
+        ]
+      }
+    },
     "/v1/faraday/getchannelevents": {
       "get": {
         "summary": "*\nGet a list of channel events that occurred for a given channel.",
@@ -1067,6 +1155,76 @@
       ],
       "default": "UNKNOWN_FIATBACKEND",
       "description": "FiatBackend is the API endpoint to be used for any fiat related queries.\n\n - COINCAP: Use the CoinCap API for fiat price information.\nThis API is reached through the following URL:\nhttps://api.coincap.io/v2/assets/bitcoin/history\n - COINDESK: Use the CoinDesk API for fiat price information.\nThis API is reached through the following URL:\nhttps://api.coindesk.com/v1/bpi/historical/close.json\n - CUSTOM: Use custom price data provided in a CSV file for fiat price information.\n - COINGECKO: Use the CoinGecko API for fiat price information.\nThis API is reached through the following URL:\nhttps://api.coingecko.com/api/v3/coins/bitcoin/market_chart"
+    },
+    "frdrpcForwardingAbility": {
+      "type": "object",
+      "properties": {
+        "velocity": {
+          "type": "number",
+          "format": "double",
+          "description": "The forwarding velocity in sat/s during effective uptime."
+        },
+        "uptime_fraction": {
+          "type": "number",
+          "format": "double",
+          "description": "The fraction of time the channel was considered effective."
+        }
+      }
+    },
+    "frdrpcForwardingAbilityPair": {
+      "type": "object",
+      "properties": {
+        "peer_in": {
+          "type": "string",
+          "description": "The public key of the incoming peer."
+        },
+        "peer_out": {
+          "type": "string",
+          "description": "The public key of the outgoing peer."
+        },
+        "ability": {
+          "$ref": "#/definitions/frdrpcForwardingAbility",
+          "description": "The forwarding ability of the peer pair."
+        }
+      }
+    },
+    "frdrpcForwardingAbilityRequest": {
+      "type": "object",
+      "properties": {
+        "start_time": {
+          "type": "string",
+          "format": "uint64",
+          "description": "The start time of the query range, expressed as unix epoch offset in\nseconds."
+        },
+        "end_time": {
+          "type": "string",
+          "format": "uint64",
+          "description": "The end time of the query range, expressed as unix epoch offset in seconds."
+        },
+        "forward_percentile": {
+          "type": "number",
+          "format": "float",
+          "description": "The percentile of successful forward amounts to use as a threshold for\ndetermining routable liquidity."
+        },
+        "threshold_amt_sat": {
+          "type": "string",
+          "format": "uint64",
+          "description": "The threshold amount in satoshis to use for determining routable liquidity."
+        }
+      }
+    },
+    "frdrpcForwardingAbilityResponse": {
+      "type": "object",
+      "properties": {
+        "pairs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/frdrpcForwardingAbilityPair"
+          },
+          "description": "The forwarding ability for each peer pair."
+        }
+      }
     },
     "frdrpcGranularity": {
       "type": "string",

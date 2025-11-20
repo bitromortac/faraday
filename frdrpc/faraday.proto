@@ -70,6 +70,31 @@ service FaradayServer {
     Get a list of channel events that occurred for a given channel.
     */
     rpc GetChannelEvents (ChannelEventsRequest) returns (ChannelEventsResponse);
+
+    /**
+    Get the forwarding ability of a peer over a given time period.
+    */
+    rpc ForwardingAbility (ForwardingAbilityRequest)
+        returns (ForwardingAbilityResponse);
+}
+
+message ForwardingAbility {
+    // The forwarding velocity in sat/s during effective uptime.
+    double velocity = 1;
+
+    // The fraction of time the channel was considered effective.
+    double uptime_fraction = 2;
+}
+
+message ForwardingAbilityPair {
+    // The public key of the incoming peer.
+    string peer_in = 1;
+
+    // The public key of the outgoing peer.
+    string peer_out = 2;
+
+    // The forwarding ability of the peer pair.
+    ForwardingAbility ability = 3;
 }
 
 message CloseRecommendationRequest {
@@ -649,4 +674,35 @@ message ChannelEvent {
 
     // The channel's remote balance at the time of the event in sat.
     uint64 remote_balance = 4;
+}
+
+message ForwardingAbilityRequest {
+    /*
+    The start time of the query range, expressed as unix epoch offset in
+    seconds.
+    */
+    uint64 start_time = 1;
+
+    /*
+    The end time of the query range, expressed as unix epoch offset in seconds.
+    */
+    uint64 end_time = 2;
+
+    /*
+    The percentile of successful forward amounts to use as a threshold for
+    determining routable liquidity.
+    */
+    float forward_percentile = 3;
+
+    /*
+    The threshold amount in satoshis to use for determining routable liquidity.
+    */
+    uint64 threshold_amt_sat = 4;
+}
+
+message ForwardingAbilityResponse {
+    /*
+    The forwarding ability for each peer pair.
+    */
+    repeated ForwardingAbilityPair pairs = 1;
 }

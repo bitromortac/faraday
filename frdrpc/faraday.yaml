@@ -38,3 +38,8 @@ http:
       additional_bindings:
         - post: "/v1/faraday/getchannelevents"
           body: "*"
+    - selector: frdrpc.FaradayServer.ForwardingAbility
+      get: "/v1/faraday/forwardingability"
+      additional_bindings:
+        - post: "/v1/faraday/forwardingability"
+          body: "*"
