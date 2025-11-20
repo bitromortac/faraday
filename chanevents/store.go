@@ -29,6 +29,7 @@ type PeerQueries interface {
 	InsertChannelEvent(ctx context.Context, arg sqlc.InsertChannelEventParams) error
 	GetChannelEvents(ctx context.Context, arg sqlc.GetChannelEventsParams) ([]sqlc.ChannelEvent, error)
 	GetLatestChannelEventBefore(ctx context.Context, arg sqlc.GetLatestChannelEventBeforeParams) (sqlc.ChannelEvent, error)
+	GetChannels(ctx context.Context) ([]sqlc.GetChannelsRow, error)
 }
 
 // Store represents gives access to the db for channel events.
@@ -149,8 +150,31 @@ func (s *Store) GetChannel(ctx context.Context, channelPoint string) (*Channel, 
 	}, nil
 }
 
+// GetChannelByShortChanID retrieves a channel by its short channel ID.
+func (s *Store) GetChannelByShortChanID(ctx context.Context,
+	shortChannelID uint64) (*Channel, error) {
+
+	dbChannel, err := s.db.GetChannelByShortChanID(
+		ctx, int64(shortChannelID),
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errUnknownChannel
+		}
+		return nil, err
+	}
+
+	return &Channel{
+		ID:             dbChannel.ID,
+		ChannelPoint:   dbChannel.ChannelPoint,
+		ShortChannelID: uint64(dbChannel.ShortChannelID),
+		PeerID:         dbChannel.PeerID,
+	}, nil
+}
+
 // AddChannelEvent adds a new channel event.
 func (s *Store) AddChannelEvent(ctx context.Context, event *ChannelEvent) error {
+	log.Debugf("Adding channel event: %+v", event)
 	var localBalance sql.NullInt64
 	event.LocalBalance.WhenSome(func(b btcutil.Amount) {
 		localBalance.Int64 = int64(b)
@@ -175,6 +199,9 @@ func (s *Store) AddChannelEvent(ctx context.Context, event *ChannelEvent) error 
 // GetChannelEvents retrieves all events for a channel within a given time range.
 func (s *Store) GetChannelEvents(ctx context.Context, channelID int64,
 	startTime, endTime time.Time) ([]*ChannelEvent, error) {
+
+	log.Tracef("Fetching channel events for channel ID %d between %v and %v",
+		channelID, startTime, endTime)
 
 	dbEvents, err := s.db.GetChannelEvents(ctx, sqlc.GetChannelEventsParams{
 		ChannelID:   channelID,
@@ -210,6 +237,26 @@ func (s *Store) GetChannelEvents(ctx context.Context, channelID int64,
 	}
 
 	return events, nil
+}
+
+// ScidToPeerMap returns a map from short channel ID to peer public key.
+func (s *Store) ScidToPeerMap(ctx context.Context) (map[uint64]string, error) {
+	dbChannels, err := s.db.GetChannels(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	scidToPeer := make(map[uint64]string, len(dbChannels))
+	for _, dbChannel := range dbChannels {
+		// The short channel ID can be zero if it's not known yet. We
+		// should just ignore those.
+		if dbChannel.ShortChannelID == 0 {
+			continue
+		}
+		scidToPeer[uint64(dbChannel.ShortChannelID)] = dbChannel.Pubkey
+	}
+
+	return scidToPeer, nil
 }
 
 // GetLatestChannelUpdateBefore returns the latest channel event before a given
