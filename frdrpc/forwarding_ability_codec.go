@@ -51,13 +51,26 @@ const uptimeQuantum = 1.0 / 65535
 // dictionary, a dense uint16 uptime matrix in row-major order, and a
 // sparse velocity list. Cells absent from the input map encode as zero.
 //
+// Each enforced invariant below mirrors the proto-level comment a non-Go
+// client must implement against. Keeping them adjacent ensures the Go
+// encoder and the proto spec drift together.
+//
 // Invariant: the returned dictionary is sorted by raw-byte comparison so
 // identical inputs produce byte-identical responses.
 //
+// Invariant: dictionary entries are 33 raw bytes (compressed
+// secp256k1), not hex.
+//
 // Invariant: len(resp.UptimeFractions) == 2 * len(resp.Peers)^2.
 //
+// Invariant: cell (in, out) lives at byte offset
+// 2 * (in*P + out) and is little-endian uint16.
+//
+// Invariant: uint16 quantisation rounds half-to-even via math.Round
+// over the formula uint16(round(uptime_fraction * 65535)).
+//
 // Invariant: a pair (in, out) appears in resp.Velocities only when its
-// velocity is non-zero.
+// velocity is non-zero, with PackedIdx = (in << 16) | out.
 func EncodeForwardingAbility(
 	abilities map[string]map[string]ForwardingAbility) (
 	*ForwardingAbilityResponse, error) {
