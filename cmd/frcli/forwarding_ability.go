@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"sort"
 	"time"
 
 	"github.com/lightninglabs/faraday/frdrpc"
@@ -67,7 +70,66 @@ func queryForwardingAbility(ctx *cli.Context) error {
 		return err
 	}
 
-	printRespJSON(resp)
+	rendered, err := renderForwardingAbility(resp)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(rendered)
 
 	return nil
+}
+
+// pairView is the human-facing projection of a single (peer_in, peer_out)
+// row of the forwarding-ability matrix.
+type pairView struct {
+	PeerIn         string  `json:"peer_in"`
+	PeerOut        string  `json:"peer_out"`
+	UptimeFraction float64 `json:"uptime_fraction"`
+	Velocity       float64 `json:"velocity"`
+}
+
+// renderForwardingAbility decodes a wire-form ForwardingAbilityResponse
+// into the analyzer-shaped map and projects it as a JSON array of pair
+// views, suppressing pairs whose uptime AND velocity are both zero so
+// the output stays scannable on large nodes.
+func renderForwardingAbility(resp *frdrpc.ForwardingAbilityResponse) (
+	string, error) {
+
+	abilities, err := frdrpc.DecodeForwardingAbility(resp)
+	if err != nil {
+		return "", err
+	}
+
+	views := make([]pairView, 0, len(abilities))
+	for inPeer, row := range abilities {
+		for outPeer, ability := range row {
+			if ability.UptimeFraction == 0 && ability.Velocity == 0 {
+				continue
+			}
+			views = append(views, pairView{
+				PeerIn:         inPeer,
+				PeerOut:        outPeer,
+				UptimeFraction: ability.UptimeFraction,
+				Velocity:       ability.Velocity,
+			})
+		}
+	}
+
+	// Stable order: sort lexicographically on (peer_in, peer_out) so
+	// repeated runs against the same data produce identical CLI output.
+	sort.Slice(views, func(i, j int) bool {
+		if views[i].PeerIn != views[j].PeerIn {
+			return views[i].PeerIn < views[j].PeerIn
+		}
+
+		return views[i].PeerOut < views[j].PeerOut
+	})
+
+	out, err := json.MarshalIndent(views, "", "    ")
+	if err != nil {
+		return "", err
+	}
+
+	return string(out), nil
 }
