@@ -249,8 +249,22 @@ func TestForwardingAbility(t *testing.T) {
 	)
 	require.NoError(c.t, err, "could not get forwarding ability")
 
-	// TODO: assert against the codec-decoded response once steps 3.3 and
-	// 3.5 land. Until then, this case is intentionally a smoke test that
-	// the new response shape parses without error.
-	_ = abilities
+	// Decode the wire response with the public codec — the same flow
+	// any external Go client would follow.
+	decoded, err := frdrpc.DecodeForwardingAbility(abilities)
+	require.NoError(c.t, err)
+
+	// We should only have a single pair: Bob -> Bob (circular).
+	require.Len(t, decoded, 1)
+	bobPubkey := c.bobPubkey.String()
+	require.Contains(t, decoded, bobPubkey)
+	require.Contains(t, decoded[bobPubkey], bobPubkey)
+
+	ability := decoded[bobPubkey][bobPubkey]
+
+	// We expect a zero velocity since no forwards occurred for this pair,
+	// but a non-zero uptime fraction since there was a period where
+	// circular forwarding was possible.
+	require.Equal(t, 0.0, ability.Velocity)
+	require.InDelta(t, 0.5, ability.UptimeFraction, 0.1)
 }
