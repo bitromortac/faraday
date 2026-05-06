@@ -1175,38 +1175,6 @@
       "default": "UNKNOWN_FIATBACKEND",
       "description": "FiatBackend is the API endpoint to be used for any fiat related queries.\n\n - COINCAP: Use the CoinCap API for fiat price information.\nThis API is reached through the following URL:\nhttps://api.coincap.io/v2/assets/bitcoin/history\n - COINDESK: Use the CoinDesk API for fiat price information.\nThis API is reached through the following URL:\nhttps://api.coindesk.com/v1/bpi/historical/close.json\n - CUSTOM: Use custom price data provided in a CSV file for fiat price information.\n - COINGECKO: Use the CoinGecko API for fiat price information.\nThis API is reached through the following URL:\nhttps://api.coingecko.com/api/v3/coins/bitcoin/market_chart\n - BITFINEX: Use the Bitfinex API for fiat price information.\nThis API is reached through the following URL:\nhttps://api-pub.bitfinex.com/v2/candles/trade:1h:tBTCUSD/hist"
     },
-    "frdrpcForwardingAbility": {
-      "type": "object",
-      "properties": {
-        "velocity": {
-          "type": "number",
-          "format": "double",
-          "description": "The forwarding velocity in sat/s during effective uptime. +Inf\n(JSON: \"Infinity\") indicates forwards were observed without the\npair ever crossing the liquidity threshold. This is a model\ninconsistency."
-        },
-        "uptime_fraction": {
-          "type": "number",
-          "format": "double",
-          "description": "The fraction of time the channel was considered effective."
-        }
-      }
-    },
-    "frdrpcForwardingAbilityPair": {
-      "type": "object",
-      "properties": {
-        "peer_in": {
-          "type": "string",
-          "description": "The public key of the incoming peer."
-        },
-        "peer_out": {
-          "type": "string",
-          "description": "The public key of the outgoing peer."
-        },
-        "ability": {
-          "$ref": "#/definitions/frdrpcForwardingAbility",
-          "description": "The forwarding ability of the peer pair."
-        }
-      }
-    },
     "frdrpcForwardingAbilityRequest": {
       "type": "object",
       "properties": {
@@ -1235,13 +1203,26 @@
     "frdrpcForwardingAbilityResponse": {
       "type": "object",
       "properties": {
-        "pairs": {
+        "peers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "byte"
+          },
+          "description": "Sorted dictionary of distinct peer pubkeys that appear as either\nincoming or outgoing peer in the matrix, encoded as raw 33-byte\ncompressed pubkeys (not hex). Sorted by raw-byte comparison so\nidentical inputs produce byte-identical responses.\n\nActs as the index space for uptime_fractions and velocities: position\ni in this list is the integer peer id i used in those fields. The\nlayout dimension P is len(peers)."
+        },
+        "uptime_fractions": {
+          "type": "string",
+          "format": "byte",
+          "description": "Dense uptime matrix in row-major order: pair (in, out) lives at byte\noffset 2 * (in * P + out) and occupies two bytes encoded as a\nlittle-endian uint16. The quantum q represents the fraction\nq / 65535 in [0, 1]; the encoder applies math.Round before clamping.\n\nLength invariant: len(uptime_fractions) == 2 * P * P. Pairs that the\nanalyzer did not produce encode as zero (q = 0), which is\nwell-defined and indistinguishable from an explicit zero — uptime\nhas no \"missing\" semantic distinct from \"zero\".\n\nWorked example for P = 2 (peers a, b sorted as raw bytes):\nbytes 0..1: uptime(a, a) little-endian uint16\nbytes 2..3: uptime(a, b)\nbytes 4..5: uptime(b, a)\nbytes 6..7: uptime(b, b)"
+        },
+        "velocities": {
           "type": "array",
           "items": {
             "type": "object",
-            "$ref": "#/definitions/frdrpcForwardingAbilityPair"
+            "$ref": "#/definitions/frdrpcVelocityEntry"
           },
-          "description": "The forwarding ability for each peer pair."
+          "description": "Sparse list of pair velocities. A pair (in, out) appears here only\nwhen its velocity is non-zero, so a healthy node with mostly idle\npairs sends very few entries even at large P."
         }
       }
     },
@@ -1463,6 +1444,21 @@
             "$ref": "#/definitions/frdrpcRevenueReport"
           },
           "description": "Reports is a set of pairwise revenue report generated for the channel(s)\nover the period specified."
+        }
+      }
+    },
+    "frdrpcVelocityEntry": {
+      "type": "object",
+      "properties": {
+        "packed_idx": {
+          "type": "integer",
+          "format": "int64",
+          "description": "Packed peer index pair: the high 16 bits hold the incoming peer\nindex and the low 16 bits hold the outgoing peer index, both\nindexing into ForwardingAbilityResponse.peers. The 16-bit per-side\nwidth caps P at 65536, well above any realistic peer count.\n\nLayout (most significant bit first):\nbits 31..16: in peer index\nbits 15..0:  out peer index"
+        },
+        "velocity": {
+          "type": "number",
+          "format": "float",
+          "description": "Forwarding velocity in sat/s during effective uptime, encoded as\nfloat32 because the wire-side precision (~7 significant digits) is\nwell above any downstream consumer's need and halves the per-entry\ncost compared to double. +Inf indicates forwards were observed\nwithout the pair ever crossing the liquidity threshold — a model\ninconsistency surfaced rather than masked."
         }
       }
     },

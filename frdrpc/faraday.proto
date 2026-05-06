@@ -78,28 +78,6 @@ service FaradayServer {
         returns (ForwardingAbilityResponse);
 }
 
-message ForwardingAbility {
-    // The forwarding velocity in sat/s during effective uptime. +Inf
-    // (JSON: "Infinity") indicates forwards were observed without the
-    // pair ever crossing the liquidity threshold. This is a model
-    // inconsistency.
-    double velocity = 1;
-
-    // The fraction of time the channel was considered effective.
-    double uptime_fraction = 2;
-}
-
-message ForwardingAbilityPair {
-    // The public key of the incoming peer.
-    string peer_in = 1;
-
-    // The public key of the outgoing peer.
-    string peer_out = 2;
-
-    // The forwarding ability of the peer pair.
-    ForwardingAbility ability = 3;
-}
-
 message CloseRecommendationRequest {
     /*
     The minimum amount of time in seconds that a channel should have been
@@ -723,7 +701,64 @@ message ForwardingAbilityRequest {
 
 message ForwardingAbilityResponse {
     /*
-    The forwarding ability for each peer pair.
+    Sorted dictionary of distinct peer pubkeys that appear as either
+    incoming or outgoing peer in the matrix, encoded as raw 33-byte
+    compressed pubkeys (not hex). Sorted by raw-byte comparison so
+    identical inputs produce byte-identical responses.
+
+    Acts as the index space for uptime_fractions and velocities: position
+    i in this list is the integer peer id i used in those fields. The
+    layout dimension P is len(peers).
     */
-    repeated ForwardingAbilityPair pairs = 1;
+    repeated bytes peers = 1;
+
+    /*
+    Dense uptime matrix in row-major order: pair (in, out) lives at byte
+    offset 2 * (in * P + out) and occupies two bytes encoded as a
+    little-endian uint16. The quantum q represents the fraction
+    q / 65535 in [0, 1]; the encoder applies math.Round before clamping.
+
+    Length invariant: len(uptime_fractions) == 2 * P * P. Pairs that the
+    analyzer did not produce encode as zero (q = 0), which is
+    well-defined and indistinguishable from an explicit zero — uptime
+    has no "missing" semantic distinct from "zero".
+
+    Worked example for P = 2 (peers a, b sorted as raw bytes):
+        bytes 0..1: uptime(a, a) little-endian uint16
+        bytes 2..3: uptime(a, b)
+        bytes 4..5: uptime(b, a)
+        bytes 6..7: uptime(b, b)
+    */
+    bytes uptime_fractions = 2;
+
+    /*
+    Sparse list of pair velocities. A pair (in, out) appears here only
+    when its velocity is non-zero, so a healthy node with mostly idle
+    pairs sends very few entries even at large P.
+    */
+    repeated VelocityEntry velocities = 3;
+}
+
+message VelocityEntry {
+    /*
+    Packed peer index pair: the high 16 bits hold the incoming peer
+    index and the low 16 bits hold the outgoing peer index, both
+    indexing into ForwardingAbilityResponse.peers. The 16-bit per-side
+    width caps P at 65536, well above any realistic peer count.
+
+    Layout (most significant bit first):
+        bits 31..16: in peer index
+        bits 15..0:  out peer index
+    */
+    uint32 packed_idx = 1;
+
+    /*
+    Forwarding velocity in sat/s during effective uptime, encoded as
+    float32 because the wire-side precision (~7 significant digits) is
+    well above any downstream consumer's need and halves the per-entry
+    cost compared to double. +Inf indicates forwards were observed
+    without the pair ever crossing the liquidity threshold — a model
+    inconsistency surfaced rather than masked.
+    */
+    float velocity = 2;
 }

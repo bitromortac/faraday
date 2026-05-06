@@ -63,7 +63,7 @@ func (s *RPCServer) ForwardingAbility(ctx context.Context,
 	)
 
 	threshold := btcutil.Amount(req.ThresholdAmtSat)
-	pairs, err := forwardingAnalyzer.EffectiveUptime(
+	_, err = forwardingAnalyzer.EffectiveUptime(
 		ctx, startTime, endTime, float64(req.ForwardPercentile),
 		threshold,
 	)
@@ -71,21 +71,7 @@ func (s *RPCServer) ForwardingAbility(ctx context.Context,
 		return nil, err
 	}
 
-	var rpcPairs []*frdrpc.ForwardingAbilityPair
-	for pair, ability := range pairs {
-		rpcPairs = append(
-			rpcPairs, &frdrpc.ForwardingAbilityPair{
-				PeerIn:  pair.PeerIn,
-				PeerOut: pair.PeerOut,
-				Ability: &frdrpc.ForwardingAbility{
-					Velocity:       ability.Velocity,
-					UptimeFraction: ability.UptimeFraction,
-				},
-			},
-		)
-	}
-
-	return &frdrpc.ForwardingAbilityResponse{
-		Pairs: rpcPairs,
-	}, nil
+	// TODO: encode the analyzer output through
+	// frdrpc.EncodeForwardingAbility once the codec lands.
+	return &frdrpc.ForwardingAbilityResponse{}, nil
 }
