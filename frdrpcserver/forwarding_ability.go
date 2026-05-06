@@ -58,12 +58,8 @@ func (s *RPCServer) ForwardingAbility(ctx context.Context,
 		)
 	}
 
-	forwardingAnalyzer := chanevents.NewForwardingAnalyzer(
-		s.cfg.ChanEvents, s.cfg.Lnd,
-	)
-
 	threshold := btcutil.Amount(req.ThresholdAmtSat)
-	_, err = forwardingAnalyzer.EffectiveUptime(
+	pairs, err := s.cfg.ForwardingAnalyzer.EffectiveUptime(
 		ctx, startTime, endTime, float64(req.ForwardPercentile),
 		threshold,
 	)
@@ -71,7 +67,30 @@ func (s *RPCServer) ForwardingAbility(ctx context.Context,
 		return nil, err
 	}
 
-	// TODO: encode the analyzer output through
-	// frdrpc.EncodeForwardingAbility once the codec lands.
-	return &frdrpc.ForwardingAbilityResponse{}, nil
+	return frdrpc.EncodeForwardingAbility(toCodecAbilities(pairs))
+}
+
+// toCodecAbilities crosses the chanevents → frdrpc type boundary by
+// nesting the analyzer's flat PeerPair-keyed map into the codec's
+// peer-in → peer-out shape and field-copying each ability into the
+// codec-local value type. The two ability structs are identical in
+// shape, but the proto submodule cannot import internal packages, so
+// the conversion is unavoidable here.
+func toCodecAbilities(
+	in map[chanevents.PeerPair]chanevents.ForwardingAbility) map[string]map[string]frdrpc.ForwardingAbility {
+
+	out := make(map[string]map[string]frdrpc.ForwardingAbility)
+	for pair, ability := range in {
+		row, ok := out[pair.PeerIn]
+		if !ok {
+			row = make(map[string]frdrpc.ForwardingAbility)
+			out[pair.PeerIn] = row
+		}
+		row[pair.PeerOut] = frdrpc.ForwardingAbility{
+			Velocity:       ability.Velocity,
+			UptimeFraction: ability.UptimeFraction,
+		}
+	}
+
+	return out
 }

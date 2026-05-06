@@ -12,7 +12,9 @@ package frdrpcserver
 import (
 	"context"
 	"errors"
+	"time"
 
+	"github.com/btcsuite/btcd/btcutil"
 	"github.com/lightninglabs/faraday/accounting"
 	"github.com/lightninglabs/faraday/chain"
 	"github.com/lightninglabs/faraday/chanevents"
@@ -53,6 +55,15 @@ type RPCServer struct {
 	cfg *Config
 }
 
+// ForwardingAnalyzer abstracts the dependency the ForwardingAbility handler
+// has on chanevents.ForwardingAnalyzer so the handler can be unit-tested
+// against a mock without instantiating the chain analyzer.
+type ForwardingAnalyzer interface {
+	EffectiveUptime(ctx context.Context, startTime, endTime time.Time,
+		fwdPct float64, threshold btcutil.Amount) (
+		map[chanevents.PeerPair]chanevents.ForwardingAbility, error)
+}
+
 // Config provides closures and settings required to run the rpc server.
 type Config struct {
 	// Lnd is a client which can be used to query lnd.
@@ -65,10 +76,24 @@ type Config struct {
 	// on-chain data from a connected bitcoin node. If nil, faraday will
 	// not be able to serve endpoints which require on-chain data.
 	BitcoinClient chain.BitcoinClient
+
+	// ForwardingAnalyzer computes pair forwarding ability over a time
+	// window. NewRPCServer fills in the production implementation if
+	// this field is left nil; tests inject a mock to drive the handler
+	// without real chain data.
+	ForwardingAnalyzer ForwardingAnalyzer
 }
 
-// NewRPCServer returns a new RPCServer backed by the given config.
+// NewRPCServer returns a new RPCServer backed by the given config. If
+// cfg.ForwardingAnalyzer is unset, the production analyzer is wired
+// from cfg.ChanEvents and cfg.Lnd.
 func NewRPCServer(cfg *Config) *RPCServer {
+	if cfg.ForwardingAnalyzer == nil {
+		cfg.ForwardingAnalyzer = chanevents.NewForwardingAnalyzer(
+			cfg.ChanEvents, cfg.Lnd,
+		)
+	}
+
 	return &RPCServer{
 		cfg: cfg,
 	}
