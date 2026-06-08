@@ -146,3 +146,61 @@ func TestGetChannelEvents(t *testing.T) {
 			"event order mismatch at index %d", i)
 	}
 }
+
+// TestForwardingAbility integration test opens a channel, sends payments to
+// seed events, and verifies that calling the ForwardingAbility RPC returns
+// the peer pair analytics successfully and can be decoded.
+func TestForwardingAbility(t *testing.T) {
+	c := newTestContext(t)
+	defer c.stop()
+
+	ctx := context.Background()
+
+	// Connect nodes and open a channel from alice to bob.
+	var aliceChannelAmt = btcutil.Amount(500000)
+
+	err := c.aliceClient.Client.Connect(
+		ctx, c.bobPubkey, "localhost:10012", true,
+	)
+	require.NoError(c.t, err, "could not connect nodes")
+
+	_, _ = c.openChannel(
+		c.aliceClient.Client, c.bobPubkey, aliceChannelAmt,
+	)
+
+	// Wait until alice can route a payment to bob.
+	var paymentAmount lnwire.MilliSatoshi = 20000000
+	c.eventuallyf(func() bool {
+		return c.channelRoutable(c.bobPubkey, paymentAmount)
+	}, "channel did not become routable")
+
+	// Send a payment from alice to bob.
+	hash, payreq := c.addInvoice(c.bobClient.Client, paymentAmount)
+	c.makePayment(
+		c.aliceClient.LndServices, c.bobClient.LndServices,
+		lndclient.SendPaymentRequest{
+			Invoice:     payreq,
+			PaymentHash: &hash,
+			Timeout:     paymentTimeout,
+		}, lnrpc.Payment_SUCCEEDED,
+	)
+
+	// Query ForwardingAbility
+	endTime := time.Now().Add(time.Second).Unix()
+	resp, err := c.faradayClient.ForwardingAbility(
+		ctx, &frdrpc.ForwardingAbilityRequest{
+			StartTime:         0,
+			EndTime:           uint64(endTime),
+			LiquidityFloorSat: 1000,
+		},
+	)
+	require.NoError(c.t, err, "could not get forwarding ability")
+
+	// The response echoes the window the metrics cover.
+	require.Equal(c.t, endTime, resp.EndTime)
+
+	// Decode and verify response
+	decoded, err := frdrpc.DecodeForwardingAbility(resp)
+	require.NoError(c.t, err)
+	require.NotNil(c.t, decoded)
+}
