@@ -178,9 +178,10 @@ func (f *Faraday) Start() error {
 	}
 
 	cfg := &frdrpcserver.Config{
-		Lnd:           f.lnd.LndServices,
-		ChanEvents:    f.stores.ChanEventsStore,
-		BitcoinClient: f.bitcoinClient,
+		Lnd:                f.lnd.LndServices,
+		ChanEvents:         f.stores.ChanEventsStore,
+		ForwardingAnalyzer: chanevents.NewForwardingAnalyzer(f.stores.ChanEventsStore, f.lnd.LndServices),
+		BitcoinClient:      f.bitcoinClient,
 	}
 
 	// Create the RPC server.
@@ -401,9 +402,10 @@ func (f *Faraday) StartAsSubserver(lndGrpc *lndclient.GrpcLndServices,
 	}
 
 	cfg := &frdrpcserver.Config{
-		Lnd:           lndGrpc.LndServices,
-		ChanEvents:    f.stores.ChanEventsStore,
-		BitcoinClient: f.bitcoinClient,
+		Lnd:                lndGrpc.LndServices,
+		ChanEvents:         f.stores.ChanEventsStore,
+		ForwardingAnalyzer: chanevents.NewForwardingAnalyzer(f.stores.ChanEventsStore, lndGrpc.LndServices),
+		BitcoinClient:      f.bitcoinClient,
 	}
 
 	// Create the RPC server, but don't start it.

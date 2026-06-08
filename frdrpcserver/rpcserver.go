@@ -12,7 +12,9 @@ package frdrpcserver
 import (
 	"context"
 	"errors"
+	"time"
 
+	"github.com/btcsuite/btcd/btcutil"
 	"github.com/lightninglabs/faraday/accounting"
 	"github.com/lightninglabs/faraday/chain"
 	"github.com/lightninglabs/faraday/chanevents"
@@ -53,6 +55,13 @@ type RPCServer struct {
 	cfg *Config
 }
 
+// ForwardingAnalyzer defines the interface for calculating forwarding performance metrics.
+type ForwardingAnalyzer interface {
+	EffectiveUptime(ctx context.Context, startTime, endTime time.Time,
+		liquidityFloor btcutil.Amount) (
+		map[chanevents.PeerPair]chanevents.ForwardingAbility, error)
+}
+
 // Config provides closures and settings required to run the rpc server.
 type Config struct {
 	// Lnd is a client which can be used to query lnd.
@@ -60,6 +69,9 @@ type Config struct {
 
 	// ChanEvents is a database of channel events.
 	ChanEvents *chanevents.Store
+
+	// ForwardingAnalyzer is an interface that provides forwarding performance analysis.
+	ForwardingAnalyzer ForwardingAnalyzer
 
 	// BitcoinClient is an optional client which can be used to query
 	// on-chain data from a connected bitcoin node. If nil, faraday will
