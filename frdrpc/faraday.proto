@@ -70,6 +70,12 @@ service FaradayServer {
     Get a list of channel events that occurred for a given channel.
     */
     rpc GetChannelEvents (ChannelEventsRequest) returns (ChannelEventsResponse);
+
+    /**
+    Get forwarding ability analysis of peer pairs.
+    */
+    rpc ForwardingAbility (ForwardingAbilityRequest)
+        returns (ForwardingAbilityResponse);
 }
 
 message CloseRecommendationRequest {
@@ -674,4 +680,56 @@ message ChannelEvent {
     // Server-assigned monotonic identity. Echo this back as the next
     // request's last_id when paginating.
     int64 id = 5;
+}
+
+message ForwardingAbilityRequest {
+    reserved 3;
+    reserved "forward_percentile";
+
+    // The start time of the query range as unix seconds. A value of 0 means
+    // the earliest available data.
+    uint64 start_time = 1;
+
+    // The end time of the query range as unix seconds. A value of 0 means the
+    // server's current time.
+    uint64 end_time = 2;
+
+    // The minimum directional liquidity in satoshis for a peer pair to count as
+    // economically forwardable. A value of 0 selects the server default. Hold
+    // this constant across calls for comparable series.
+    uint64 liquidity_floor_sat = 4;
+}
+
+message ForwardingAbilityResponse {
+    // Sorted list of unique compressed 33-byte public keys of the peers.
+    repeated bytes peers = 1;
+
+    // Sparse list of forwarding ability entries. An entry is present only when
+    // its effective_uptime_s or forwarded_sat is non-zero. A peer pair absent
+    // from this list had zero effective uptime and zero forwarded volume over
+    // [start_time, end_time). Absence means zero, not unknown.
+    repeated ForwardingAbilityEntry entries = 2;
+
+    // The start of the window the metrics cover, as unix seconds.
+    int64 start_time = 3;
+
+    // The end of the window the metrics cover, as unix seconds.
+    int64 end_time = 4;
+}
+
+message ForwardingAbilityEntry {
+    reserved 2, 3, 4;
+    reserved "uptime_fraction", "velocity", "inconsistent";
+
+    // The indices of the incoming and outgoing peers packed into a single
+    // 32-bit integer: packed_idx = (in << 16) | out. This caps the peer set at
+    // 65535 peers per direction.
+    uint32 packed_idx = 1;
+
+    // Seconds the peer pair held at least the requested liquidity floor of
+    // directional forwardable liquidity over the window.
+    int64 effective_uptime_s = 5;
+
+    // Total successfully forwarded amount over the window, in satoshis.
+    int64 forwarded_sat = 6;
 }

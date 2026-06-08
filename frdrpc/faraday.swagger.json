@@ -1025,6 +1025,57 @@
       "default": "UNKNOWN_FIATBACKEND",
       "description": "FiatBackend is the API endpoint to be used for any fiat related queries.\n\n - COINCAP: Use the CoinCap API for fiat price information.\nThis API is reached through the following URL:\nhttps://api.coincap.io/v2/assets/bitcoin/history\n - COINDESK: Use the CoinDesk API for fiat price information.\nThis API is reached through the following URL:\nhttps://api.coindesk.com/v1/bpi/historical/close.json\n - CUSTOM: Use custom price data provided in a CSV file for fiat price information.\n - COINGECKO: Use the CoinGecko API for fiat price information.\nThis API is reached through the following URL:\nhttps://api.coingecko.com/api/v3/coins/bitcoin/market_chart\n - BITFINEX: Use the Bitfinex API for fiat price information.\nThis API is reached through the following URL:\nhttps://api-pub.bitfinex.com/v2/candles/trade:1h:tBTCUSD/hist"
     },
+    "frdrpcForwardingAbilityEntry": {
+      "type": "object",
+      "properties": {
+        "packed_idx": {
+          "type": "integer",
+          "format": "int64",
+          "description": "The indices of the incoming and outgoing peers packed into a single\n32-bit integer: packed_idx = (in \u003c\u003c 16) | out. This caps the peer set at\n65535 peers per direction."
+        },
+        "effective_uptime_s": {
+          "type": "string",
+          "format": "int64",
+          "description": "Seconds the peer pair held at least the requested liquidity floor of\ndirectional forwardable liquidity over the window."
+        },
+        "forwarded_sat": {
+          "type": "string",
+          "format": "int64",
+          "description": "Total successfully forwarded amount over the window, in satoshis."
+        }
+      }
+    },
+    "frdrpcForwardingAbilityResponse": {
+      "type": "object",
+      "properties": {
+        "peers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "byte"
+          },
+          "description": "Sorted list of unique compressed 33-byte public keys of the peers."
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/frdrpcForwardingAbilityEntry"
+          },
+          "description": "Sparse list of forwarding ability entries. An entry is present only when\nits effective_uptime_s or forwarded_sat is non-zero. A peer pair absent\nfrom this list had zero effective uptime and zero forwarded volume over\n[start_time, end_time). Absence means zero, not unknown."
+        },
+        "start_time": {
+          "type": "string",
+          "format": "int64",
+          "description": "The start of the window the metrics cover, as unix seconds."
+        },
+        "end_time": {
+          "type": "string",
+          "format": "int64",
+          "description": "The end of the window the metrics cover, as unix seconds."
+        }
+      }
+    },
     "frdrpcGranularity": {
       "type": "string",
       "enum": [
