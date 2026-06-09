@@ -659,8 +659,20 @@ func calculateBothDirectionsUptime(ctx context.Context, startTime,
 		)
 	}
 
-	statesA = copyChannelStates(statesA)
-	statesB = copyChannelStates(statesB)
+	statesACopy := make(map[int64]*channelState, len(statesA))
+	for k, v := range statesA {
+		statesACopy[k] = v
+	}
+	statesA = statesACopy
+
+	statesBCopy := make(map[int64]*channelState, len(statesB))
+	for k, v := range statesB {
+		statesBCopy[k] = v
+	}
+	statesB = statesBCopy
+
+	copiedA := make(map[int64]bool)
+	copiedB := make(map[int64]bool)
 
 	var uptimeAB, uptimeBA time.Duration
 	lastTimestamp := startTime
@@ -722,6 +734,13 @@ func calculateBothDirectionsUptime(ctx context.Context, startTime,
 		// because the event may change the channel's online status or
 		// balances in a way that affects the sums.
 		if state, ok := statesA[event.ChannelID]; ok {
+			if !copiedA[event.ChannelID] {
+				stateCopy := *state
+				state = &stateCopy
+				statesA[event.ChannelID] = state
+				copiedA[event.ChannelID] = true
+			}
+
 			// An online channel's balances were already included in
 			// the sums, so remove them before applying the event.
 			if state.online {
@@ -742,6 +761,13 @@ func calculateBothDirectionsUptime(ctx context.Context, startTime,
 			}
 		}
 		if state, ok := statesB[event.ChannelID]; ok {
+			if !copiedB[event.ChannelID] {
+				stateCopy := *state
+				state = &stateCopy
+				statesB[event.ChannelID] = state
+				copiedB[event.ChannelID] = true
+			}
+
 			if state.online {
 				sumBRemote -= state.remoteBalance
 				sumBLocal -= state.localBalance
