@@ -56,7 +56,10 @@ func (s *RPCServer) ForwardingAbility(ctx context.Context,
 	}
 
 	startTime := time.Unix(int64(req.StartTime), 0)
-	endTime := time.Now()
+	// The response and the observed window use whole seconds, so the
+	// analysis must use the same end time. Otherwise uptime can exceed the
+	// observed window.
+	endTime := time.Now().Truncate(time.Second)
 	if req.EndTime != 0 {
 		endTime = time.Unix(int64(req.EndTime), 0)
 	}
@@ -96,7 +99,7 @@ func (s *RPCServer) ForwardingAbility(ctx context.Context,
 		)
 	}
 
-	abilities, err := s.cfg.ForwardingAnalyzer.EffectiveUptime(
+	abilities, unobserved, err := s.cfg.ForwardingAnalyzer.EffectiveUptime(
 		ctx, startTime, endTime, btcutil.Amount(liquidityFloor),
 	)
 	if err != nil {
@@ -110,6 +113,10 @@ func (s *RPCServer) ForwardingAbility(ctx context.Context,
 		return nil, status.Errorf(codes.Internal, "failed to "+
 			"calculate effective uptime: %v", err)
 	}
+
+	// Round up, because uptime rounds down: a pair that was up for the
+	// whole observed window then still reaches its full length.
+	unobservedS := uint64((unobserved + time.Second - 1) / time.Second)
 
 	// Convert the flat map into the nested map the codec expects, carrying
 	// the raw facts through unchanged. EffectiveUptime is truncated to
@@ -134,11 +141,13 @@ func (s *RPCServer) ForwardingAbility(ctx context.Context,
 	}
 
 	// Guard against returning data when the node itself was down for the
-	// window. If no pair held at least the threshold fraction of uptime,
-	// the response carries no signal and lowering the threshold to surface
-	// something would only inflate it, so fail loudly instead.
+	// observed window. If no pair held at least the threshold fraction of
+	// uptime, the response carries no signal and lowering the threshold to
+	// surface something would only inflate it, so fail loudly instead.
 	minUptimeS := frdrpc.MinQualifyingUptime(
-		uptimeThreshold, endTime.Unix()-startTime.Unix(),
+		uptimeThreshold, frdrpc.ObservedWindow(
+			startTime.Unix(), endTime.Unix(), unobservedS,
+		),
 	)
 	var qualifying int
 	for _, outMap := range nested {
@@ -155,7 +164,8 @@ func (s *RPCServer) ForwardingAbility(ctx context.Context,
 	}
 
 	resp, err := frdrpc.EncodeForwardingAbility(
-		nested, startTime.Unix(), endTime.Unix(), 0, uptimeThreshold,
+		nested, startTime.Unix(), endTime.Unix(), unobservedS,
+		uptimeThreshold,
 	)
 	if err != nil {
 		log.ErrorS(
